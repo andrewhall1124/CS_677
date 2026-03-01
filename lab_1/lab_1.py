@@ -58,8 +58,8 @@ def _(np, pd, plt, sns, uniform):
     # Chart
     sns.lineplot(results_a, x='a', y='constant')
     plt.axhline(y=np.sqrt(2 * np.pi), color='r', linestyle='--', label='True value (√2π)')
-    plt.xlabel("Normalizing Constant")
-    plt.ylabel("a")
+    plt.ylabel("Normalizing Constant")
+    plt.xlabel("a")
     plt.legend()
     plt.show()
     return a_list, results_a
@@ -261,7 +261,7 @@ def _(D, torch):
         x_grid = torch.linspace(support[0], support[1], 1000)
         target_vals = target_pdf(x_grid)
         proposal_vals = torch.exp(proposal_dist.log_prob(x_grid))
-    
+
         valid_mask = proposal_vals > 0
 
         M = (target_vals[valid_mask] / proposal_vals[valid_mask]).max().item() * 1.1
@@ -270,26 +270,26 @@ def _(D, torch):
 
     def rejection_sampling(proposal_dist, n_samples: int = 1000, support: tuple[int, int] = (-15, 15)):
         M = compute_M(proposal_dist, support)
-    
+
         accepted_samples = []
         total_proposals = 0
-    
+
         while len(accepted_samples) < n_samples:
             proposal_sample = proposal_dist.sample()
-        
+
             if support[0] < proposal_sample < support[1]:
                 total_proposals += 1
-            
+
                 target_density = target_pdf(proposal_sample)
                 proposal_density = torch.exp(proposal_dist.log_prob(proposal_sample))
-            
+
                 u = D.Uniform(0, 1).sample()
-            
+
                 if u <= target_density / (M * proposal_density):
                     accepted_samples.append(proposal_sample.item())
-    
+
         acceptance_ratio = len(accepted_samples) / total_proposals
-    
+
         return accepted_samples, acceptance_ratio
 
     # Run rejection sampling with all three proposal distributions
@@ -303,9 +303,9 @@ def _(D, torch):
     samples_3, ratio_3 = rejection_sampling(laplace)
 
     # Summary
-    print(f"Uniform(-15, -5): {ratio_1:.4f}")
+    print(f"Uniform(5, 5): {ratio_1:.4f}")
     print(f"Uniform(-15, 15): {ratio_2:.4f}")
-    print(f"Laplace(loc=5, scale=5): {ratio_3:.4f}")
+    print(f"Laplace(5, 5): {ratio_3:.4f}")
     return (
         compute_M,
         laplace,
@@ -333,9 +333,9 @@ def _(mo):
 def _(compute_M, plt, sns, target_pdf, torch):
     def plot_rejection_sampling(proposal_dist, samples, acceptance_ratio, title, support=(-15, 15)):
         M = compute_M(proposal_dist, support)
-    
+
         x = torch.linspace(support[0], support[1], 1000)
-    
+
         target_vals = target_pdf(x).numpy()
         proposal_vals = torch.exp(proposal_dist.log_prob(x)).numpy()
         scaled_proposal_vals = M * proposal_vals
@@ -345,7 +345,7 @@ def _(compute_M, plt, sns, target_pdf, torch):
         plt.plot(x.numpy(), proposal_vals, label='Proposal PDF')
         plt.plot(x.numpy(), scaled_proposal_vals, label=f'Scaled Proposal')
         sns.kdeplot(samples, label='Empirical PDF (accepted samples)')
-    
+
         plt.ylabel('Density')
         plt.title(title)
         plt.legend()
