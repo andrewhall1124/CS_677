@@ -10,8 +10,10 @@ def _():
     import jax.numpy as jnp
     import jax.scipy as scp
     import jax
+    import matplotlib.pyplot as plt
+    import numpy as np
 
-    return jax, jnp, mo, scp
+    return jax, jnp, mo, np, plt, scp
 
 
 @app.cell(hide_code=True)
@@ -41,7 +43,7 @@ def _(jax, jnp, key):
         y = jax.random.normal(key=subkey2, shape=(n_samples,)) * sigma_y + mu
 
         return X, y
-    
+
     X, y = generate_data(1000, key)
     return X, y
 
@@ -96,7 +98,7 @@ def _(jax, jnp, log_posterior):
         for chain in range(n_chains):
             # Split key for this chain
             key, chain_key = jax.random.split(key)
-        
+
             # Random starting location per chain
             chain_key, subkey1, subkey2 = jax.random.split(chain_key, 3)
             w = jax.random.normal(key=subkey1, shape=(3,))
@@ -140,18 +142,86 @@ def _(mo):
 
 @app.cell
 def _(X, key, mh_sample, y):
+    step_size = 0.05
     chains = mh_sample(
         X=X,
         y=y,
         key=key,
-        n_samples=100,
-        burn_in=1000, 
-        thin=5, 
-        n_chains=1, 
-        step_size=.1
+        n_samples=5000,
+        burn_in=2000,
+        thin=5,
+        n_chains=1,
+        step_size=step_size,
     )
+    return chains, step_size
 
-    chains
+
+@app.cell
+def _(chains, np):
+    param_names = [r"$w_0$", r"$w_1$", r"$w_2$", r"$b$"]
+    true_params = [0.5, -1.2, 3.0, 1.8]
+    all_samples = np.concatenate([np.array(c) for c in chains], axis=0)
+    return all_samples, param_names, true_params
+
+
+@app.cell
+def _(chains, np, param_names, plt, step_size, true_params):
+    def trace_plots():
+        fig, axes = plt.subplots(4, 1, figsize=(10, 8), sharex=True)
+
+        # PLot a chart for each parameter
+        for i, (ax, name, true_val) in enumerate(zip(axes, param_names, true_params)):
+        
+            # Plot each chain for the parameter
+            for j, chain in enumerate(chains):
+                ax.plot(np.array(chain[:, i]), label=f"Chain {j+1}")
+
+            # True parameter
+            ax.axhline(true_val, color="red", linestyle='--', label="True")
+            ax.set_ylabel(name)
+            ax.legend(loc="upper right", fontsize=8)
+
+        # Format
+        axes[-1].set_xlabel("Sample")
+        fig.suptitle(f"Trace Plots (step size = {step_size})")
+        plt.tight_layout()
+        plt.show()
+    
+    trace_plots()
+    return
+
+
+@app.cell
+def _(all_samples, np, param_names, plt, true_params):
+    def posterior_histograms():    
+        fig, axes = plt.subplots(2, 2, figsize=(10, 7))
+
+        # Plot each parameter's posterior histogram
+        for i, (ax, name, true_val) in enumerate(zip(axes.flat, param_names, true_params)):
+            # Get samples
+            samples_i = all_samples[:, i]
+
+            # Get credible intervals
+            lo, hi = np.percentile(samples_i, [2.5, 97.5])
+
+            # Plot each histogram
+            ax.hist(samples_i, bins=50)
+            ax.axvline(true_val, color="red", linestyle="--", label=f"True = {true_val}")
+            ax.axvline(lo, color="orange", linestyle="--", label=f"2.5% = {lo:.3f}")
+            ax.axvline(hi, color="orange", linestyle="--", label=f"97.5% = {hi:.3f}")
+            ax.set_title(f"Posterior of {name}")
+            ax.legend(fontsize=7)
+
+        # Format
+        plt.tight_layout()
+        plt.show()
+    
+    posterior_histograms()
+    return
+
+
+@app.cell
+def _():
     return
 
 
