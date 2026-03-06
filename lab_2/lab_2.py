@@ -12,8 +12,10 @@ def _():
     import jax
     import matplotlib.pyplot as plt
     import numpy as np
+    import pymc as pm
+    import arviz as az
 
-    return jax, jnp, mo, np, plt, scp
+    return jax, jnp, mo, np, plt, pm, scp
 
 
 @app.cell(hide_code=True)
@@ -150,7 +152,7 @@ def _(X, key, mh_sample, y):
         n_samples=5000,
         burn_in=2000,
         thin=5,
-        n_chains=1,
+        n_chains=4,
         step_size=step_size,
     )
     return chains, step_size
@@ -171,7 +173,7 @@ def _(chains, np, param_names, plt, step_size, true_params):
 
         # PLot a chart for each parameter
         for i, (ax, name, true_val) in enumerate(zip(axes, param_names, true_params)):
-        
+
             # Plot each chain for the parameter
             for j, chain in enumerate(chains):
                 ax.plot(np.array(chain[:, i]), label=f"Chain {j+1}")
@@ -186,7 +188,7 @@ def _(chains, np, param_names, plt, step_size, true_params):
         fig.suptitle(f"Trace Plots (step size = {step_size})")
         plt.tight_layout()
         plt.show()
-    
+
     trace_plots()
     return
 
@@ -215,8 +217,103 @@ def _(all_samples, np, param_names, plt, true_params):
         # Format
         plt.tight_layout()
         plt.show()
-    
+
     posterior_histograms()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## 5. PyMC Implementation
+    """)
+    return
+
+
+@app.cell
+def _(jnp, np, pm):
+    def pymc_mh_sample(
+        X: jnp.array,
+        y: jnp.array,
+        n_samples: int = 10000,
+        burn_in: int = 1000,
+        thin: int = 5,
+        n_chains: int = 4,
+        step_size: float = 0.1,
+    ) -> list[jnp.array]:   
+        X_np = np.array(X)
+        y_np = np.array(y)
+    
+        with pm.Model() as linear_model:
+            # Priors
+            w = pm.Normal("w", mu=0, sigma=10, shape=3)
+            b = pm.Normal("b", mu=0, sigma=10)
+            sigma_y = pm.HalfNormal("sigma_y", sigma=5)
+    
+            # Likelihood
+            mu = X_np @ w + b
+            y_obs = pm.Normal("y_obs", mu=mu, sigma=sigma_y, observed=y_np)
+    
+            # Sample (NUTS by default)
+            trace = pm.sample(n_samples, tune=thin, chains=n_chains)
+
+        return trace
+
+    return (pymc_mh_sample,)
+
+
+@app.cell
+def _(X, pymc_mh_sample, step_size, y):
+    trace = pymc_mh_sample(
+        X=X,
+        y=y,
+        n_samples=5000,
+        burn_in=2000,
+        thin=5,
+        n_chains=4,
+        step_size=step_size,
+    )
+    return (trace,)
+
+
+@app.cell
+def _(param_names, true_params):
+    sigma_y_true = 1.0
+    all_true = true_params + [sigma_y_true]
+    all_names = param_names + [r"$\sigma_y$"]
+    return all_names, all_true
+
+
+@app.cell
+def _(all_names, all_true, np, plt, trace):
+    def pymc_posterior_histograms():
+        fig, axes = plt.subplots(2, 3, figsize=(14, 6))
+        axes = axes.flatten()
+    
+        param_map = [("w", 0), ("w", 1), ("w", 2), ("b", None), ("sigma_y", None)]
+    
+        for i, (name, idx) in enumerate(param_map):
+            ax = axes[i]
+            if idx is not None:
+                samples = trace.posterior[name].values[:, :, idx].flatten()
+            else:
+                samples = trace.posterior[name].values.flatten()
+    
+            ci_low, ci_high = np.percentile(samples, [2.5, 97.5])
+    
+            ax.hist(samples, bins=50)
+            ax.axvline(all_true[i], color="red", linestyle="--", label=f"True = {all_true[i]}")
+            ax.axvline(ci_low, color="orange", linestyle="--", label=f"95% CI [{ci_low:.2f}, {ci_high:.2f}]")
+            ax.axvline(ci_high, color="orange", linestyle="--")
+            ax.set_title(all_names[i])
+            ax.legend(fontsize=8)
+    
+        axes[-1].set_visible(False)
+        plt.suptitle("PyMC Posteriors with 95% Credible Intervals")
+        plt.tight_layout()
+        plt.show()
+
+    pymc_posterior_histograms()
     return
 
 
