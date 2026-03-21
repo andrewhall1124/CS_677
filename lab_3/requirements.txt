@@ -2,3 +2,6 @@ lightning
 torch
 torchvision
 posteriors
+seaborn
+matplotlib
+pandas
