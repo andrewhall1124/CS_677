@@ -5,3 +5,4 @@ posteriors
 seaborn
 matplotlib
 pandas
+tqdm
